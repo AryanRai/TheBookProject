@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Book Project - Reels Reader</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <button class="back-btn" id="backBtn">
+                    <i class="fas fa-arrow-left"></i>
+                </button>
+                <h1 class="book-title" id="bookTitle">Loading...</h1>
+                <button class="menu-btn" id="menuBtn">
+                    <i class="fas fa-ellipsis-v"></i>
+                </button>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+        </header>
+
+        <!-- Book Reels Container -->
+        <main class="reels-container" id="reelsContainer">
+            <div class="loading-screen" id="loadingScreen">
+                <div class="loading-spinner"></div>
+                <p>Loading your book...</p>
+            </div>
+        </main>
+
+        <!-- Controls Overlay -->
+        <div class="controls-overlay">
+            <button class="control-btn prev-btn" id="prevBtn">
+                <i class="fas fa-chevron-up"></i>
+            </button>
+            <button class="control-btn next-btn" id="nextBtn">
+                <i class="fas fa-chevron-down"></i>
+            </button>
+        </div>
+
+        <!-- Side Panel for Navigation -->
+        <div class="side-panel" id="sidePanel">
+            <div class="panel-header">
+                <h3>Chapters</h3>
+                <button class="close-panel" id="closePanel">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="chapters-list" id="chaptersList">
+                <!-- Chapters will be dynamically added here -->
+            </div>
+        </div>
+
+        <!-- Menu Overlay -->
+        <div class="menu-overlay" id="menuOverlay">
+            <div class="menu-content">
+                <button class="menu-item" id="settingsBtn">
+                    <i class="fas fa-cog"></i>
+                    <span>Settings</span>
+                </button>
+                <button class="menu-item" id="bookmarksBtn">
+                    <i class="fas fa-bookmark"></i>
+                    <span>Bookmarks</span>
+                </button>
+                <button class="menu-item" id="chaptersBtn">
+                    <i class="fas fa-list"></i>
+                    <span>Chapters</span>
+                </button>
+                <button class="menu-item" id="fontBtn">
+                    <i class="fas fa-font"></i>
+                    <span>Font Size</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- File Upload Area -->
+        <div class="upload-area" id="uploadArea">
+            <div class="upload-content">
+                <i class="fas fa-cloud-upload-alt upload-icon"></i>
+                <h2>Welcome to The Book Project</h2>
+                <p>Upload an EPUB file to start reading in reels mode</p>
+                <button class="upload-btn" id="uploadBtn">
+                    <i class="fas fa-plus"></i>
+                    Choose EPUB File
+                </button>
+                <input type="file" id="fileInput" accept=".epub" hidden>
+                <div class="demo-section">
+                    <p>Or try our demo book:</p>
+                    <button class="demo-btn" id="demoBtn">
+                        <i class="fas fa-book"></i>
+                        Load Demo Book
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html> 
