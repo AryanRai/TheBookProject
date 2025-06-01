@@ -6,7 +6,10 @@
     <title>The Book Project - Reels Reader</title>
     <link rel="stylesheet" href="styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <!-- Supabase JavaScript SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
     <div class="app-container">
@@ -70,6 +73,10 @@
         <!-- Menu Overlay -->
         <div class="menu-overlay" id="menuOverlay">
             <div class="menu-content">
+                <button class="menu-item" id="annotationsBtn">
+                    <i class="fas fa-highlighter"></i>
+                    <span>Annotations</span>
+                </button>
                 <button class="menu-item" id="settingsBtn">
                     <i class="fas fa-cog"></i>
                     <span>Settings</span>
@@ -86,6 +93,131 @@
                     <i class="fas fa-font"></i>
                     <span>Font Size</span>
                 </button>
+                <button class="menu-item" id="shareBtn">
+                    <i class="fas fa-share-alt"></i>
+                    <span>Share Progress</span>
+                </button>
+                <button class="menu-item" id="challengesBtn">
+                    <i class="fas fa-trophy"></i>
+                    <span>Challenges</span>
+                </button>
+                <button class="menu-item" id="usageBtn">
+                    <i class="fas fa-chart-bar"></i>
+                    <span>Usage Dashboard</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Annotations Panel -->
+        <div class="annotations-panel" id="annotationsPanel">
+            <div class="panel-header">
+                <h3>Annotations & Highlights</h3>
+                <button class="close-panel" id="closeAnnotations">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="annotations-toolbar">
+                <button class="annotation-tool active" id="highlightTool" data-type="highlight">
+                    <i class="fas fa-highlighter"></i>
+                    <span>Highlight</span>
+                </button>
+                <button class="annotation-tool" id="noteTool" data-type="note">
+                    <i class="fas fa-sticky-note"></i>
+                    <span>Note</span>
+                </button>
+                <button class="annotation-tool" id="bookmarkTool" data-type="bookmark">
+                    <i class="fas fa-bookmark"></i>
+                    <span>Bookmark</span>
+                </button>
+            </div>
+            <div class="annotations-list" id="annotationsList">
+                <!-- Annotations will be dynamically added -->
+            </div>
+        </div>
+
+        <!-- Social Discovery Panel -->
+        <div class="social-panel" id="socialPanel">
+            <div class="panel-header">
+                <h3>Book Community</h3>
+                <button class="close-panel" id="closeSocial">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="social-tabs">
+                <button class="social-tab active" data-tab="reviews">Reviews</button>
+                <button class="social-tab" data-tab="discussions">Discussions</button>
+                <button class="social-tab" data-tab="quotes">Quotes</button>
+            </div>
+            <div class="social-content" id="socialContent">
+                <!-- Social content will be dynamically loaded -->
+            </div>
+        </div>
+
+        <!-- Reading Challenges Modal -->
+        <div class="modal-overlay" id="challengesModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Reading Challenges</h3>
+                    <button class="close-modal" id="closeChallenges">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="challenges-grid" id="challengesGrid">
+                    <!-- Challenges will be dynamically loaded -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Advanced Settings Modal -->
+        <div class="modal-overlay" id="settingsModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Reading Settings</h3>
+                    <button class="close-modal" id="closeSettings">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="settings-sections">
+                    <div class="settings-section">
+                        <h4>Appearance</h4>
+                        <div class="setting-group">
+                            <label>Font Family</label>
+                            <select id="fontFamily">
+                                <option value="Georgia">Georgia (Serif)</option>
+                                <option value="Inter">Inter (Sans-serif)</option>
+                                <option value="Merriweather">Merriweather</option>
+                                <option value="Open Dyslexic">OpenDyslexic</option>
+                            </select>
+                        </div>
+                        <div class="setting-group">
+                            <label>Line Height</label>
+                            <input type="range" id="lineHeight" min="1.4" max="2.0" step="0.1" value="1.8">
+                            <span class="range-value">1.8</span>
+                        </div>
+                        <div class="setting-group">
+                            <label>Reading Width</label>
+                            <input type="range" id="readingWidth" min="400" max="800" step="50" value="650">
+                            <span class="range-value">650px</span>
+                        </div>
+                    </div>
+                    <div class="settings-section">
+                        <h4>Reading Experience</h4>
+                        <div class="setting-group">
+                            <label>Auto-scroll Speed</label>
+                            <input type="range" id="autoScrollSpeed" min="0" max="10" step="1" value="0">
+                            <span class="range-value">Off</span>
+                        </div>
+                        <div class="setting-group">
+                            <label>Page Turn Animation</label>
+                            <select id="pageAnimation">
+                                <option value="slide">Slide (Default)</option>
+                                <option value="fade">Fade</option>
+                                <option value="flip">Page Flip</option>
+                                <option value="none">No Animation</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -230,6 +362,8 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="api-config.js"></script>
+    <script src="book-apis.js"></script>
     <script src="supabase-config.js"></script>
     <script src="script.js"></script>
 </body>

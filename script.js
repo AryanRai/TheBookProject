@@ -21,6 +21,34 @@ class EpubReelsReader {
         this.hideLoading(); // Hide loading screen on startup
         this.showHomepage(); // Start with homepage
         this.populateHomepage();
+        
+        // Phase 3: Initialize advanced features
+        this.annotations = this.getAnnotations();
+        this.challenges = this.getChallenges();
+        this.currentAnnotationMode = null;
+        this.selectedText = '';
+        this.selectionRange = null;
+        
+        // Phase 3 elements
+        this.annotationsPanel = document.getElementById('annotationsPanel');
+        this.socialPanel = document.getElementById('socialPanel');
+        this.challengesModal = document.getElementById('challengesModal');
+        this.settingsModal = document.getElementById('settingsModal');
+        this.annotationsList = document.getElementById('annotationsList');
+        this.socialContent = document.getElementById('socialContent');
+        this.challengesGrid = document.getElementById('challengesGrid');
+        
+        // Initialize custom cursor
+        this.initializeCustomCursor();
+        
+        // Initialize voting system BEFORE populating homepage
+        this.initializeVotingSystem();
+        
+        // Initialize Book API Service
+        this.initializeBookAPI();
+        
+        // Initialize Material You theming
+        this.initializeMaterialYouTheming();
     }
 
     initializeElements() {
@@ -39,6 +67,7 @@ class EpubReelsReader {
         this.controlsOverlay = document.querySelector('.controls-overlay');
         this.homepage = document.getElementById('homepage');
         this.popularBooksGrid = document.getElementById('popularBooksGrid');
+        this.backBtn = document.getElementById('backBtn');
     }
 
     getPreferredTheme() {
@@ -88,7 +117,11 @@ class EpubReelsReader {
 
         // Header controls
         document.getElementById('backBtn').addEventListener('click', () => {
-            this.navigateBack();
+            if (this.currentView === 'reader') {
+                this.backToHomepage();
+            } else {
+                this.showHomepage();
+            }
         });
 
         document.getElementById('menuBtn').addEventListener('click', () => {
@@ -112,6 +145,11 @@ class EpubReelsReader {
         // Menu items
         document.getElementById('chaptersBtn').addEventListener('click', () => {
             this.toggleSidePanel();
+            this.hideMenu();
+        });
+
+        document.getElementById('bookmarksBtn').addEventListener('click', () => {
+            this.saveBookmark();
             this.hideMenu();
         });
 
@@ -219,6 +257,93 @@ class EpubReelsReader {
                 const category = card.dataset.category;
                 this.browseCategory(category);
             });
+        });
+
+        // Phase 3: Advanced features event listeners
+        document.getElementById('annotationsBtn').addEventListener('click', () => {
+            this.toggleAnnotationsPanel();
+            this.hideMenu();
+        });
+
+        document.getElementById('shareBtn').addEventListener('click', () => {
+            this.shareProgress();
+            this.hideMenu();
+        });
+
+        document.getElementById('challengesBtn').addEventListener('click', () => {
+            this.showChallengesModal();
+            this.hideMenu();
+        });
+
+        document.getElementById('usageBtn').addEventListener('click', () => {
+            this.showUsageDashboard();
+            this.hideMenu();
+        });
+
+        document.getElementById('settingsBtn').addEventListener('click', () => {
+            this.showSettingsModal();
+            this.hideMenu();
+        });
+
+        // Annotations panel controls
+        document.getElementById('closeAnnotations').addEventListener('click', () => {
+            this.closeAnnotationsPanel();
+        });
+
+        document.querySelectorAll('.annotation-tool').forEach(tool => {
+            tool.addEventListener('click', () => {
+                this.setAnnotationMode(tool.dataset.type);
+            });
+        });
+
+        // Social panel controls
+        document.getElementById('closeSocial').addEventListener('click', () => {
+            this.closeSocialPanel();
+        });
+
+        document.querySelectorAll('.social-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                this.switchSocialTab(tab.dataset.tab);
+            });
+        });
+
+        // Modal controls
+        document.getElementById('closeChallenges').addEventListener('click', () => {
+            this.closeChallengesModal();
+        });
+
+        document.getElementById('closeSettings').addEventListener('click', () => {
+            this.closeSettingsModal();
+        });
+
+        // Settings controls
+        document.getElementById('fontFamily').addEventListener('change', (e) => {
+            this.updateFontFamily(e.target.value);
+        });
+
+        document.getElementById('lineHeight').addEventListener('input', (e) => {
+            this.updateLineHeight(e.target.value);
+        });
+
+        document.getElementById('readingWidth').addEventListener('input', (e) => {
+            this.updateReadingWidth(e.target.value);
+        });
+
+        document.getElementById('autoScrollSpeed').addEventListener('input', (e) => {
+            this.updateAutoScrollSpeed(e.target.value);
+        });
+
+        document.getElementById('pageAnimation').addEventListener('change', (e) => {
+            this.updatePageAnimation(e.target.value);
+        });
+
+        // Text selection for annotations
+        document.addEventListener('mouseup', () => {
+            this.handleTextSelection();
+        });
+
+        document.addEventListener('touchend', () => {
+            setTimeout(() => this.handleTextSelection(), 100);
         });
     }
 
@@ -595,7 +720,9 @@ class EpubReelsReader {
         this.updateProgress();
         this.updateChapterSelection();
         
+        // Apply annotations to the new page
         setTimeout(() => {
+            this.applyAnnotationsToPage();
             this.isAnimating = false;
         }, 200);
     }
@@ -944,26 +1071,55 @@ class EpubReelsReader {
         this.popularBooks.forEach(book => {
             const bookCard = document.createElement('div');
             bookCard.className = 'book-card';
+            bookCard.setAttribute('data-book-id', book.id);
+            
+            // Handle different cover types (emoji vs image URL)
+            const coverContent = book.cover.startsWith('http') 
+                ? `<img src="${book.cover}" alt="${book.title}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                   <div style="display: none; font-size: 48px; align-items: center; justify-content: center; height: 100%;">📚</div>`
+                : `<span style="font-size: 48px;">${book.cover}</span>`;
+                
             bookCard.innerHTML = `
-                <div class="book-cover">
-                    <span style="font-size: 48px;">${book.cover}</span>
-                </div>
+                <div class="book-cover">${coverContent}</div>
                 <div class="book-info">
-                    <div class="book-title">${book.title}</div>
-                    <div class="book-author">by ${book.author}</div>
+                    <h3 class="book-title">${book.title}</h3>
+                    <p class="book-author">${book.author}</p>
                     <div class="book-rating">
-                        <span class="stars">${'★'.repeat(Math.floor(book.rating))}${'☆'.repeat(5-Math.floor(book.rating))}</span>
-                        <span class="rating-number">${book.rating}</span>
+                        <div class="stars">${this.renderStars(book.rating)}</div>
+                        <span class="rating-number">${book.rating.toFixed(1)}</span>
+                        <span class="ratings-count">(${book.ratingsCount || 0})</span>
+                    </div>
+                    <p class="book-source">${book.source || 'Local'}</p>
+                    
+                    <div class="book-actions">
+                        <div class="vote-buttons">
+                            <button class="vote-btn vote-up ${(this.userVotes && this.userVotes[book.id]) === 'up' ? 'active' : ''}" 
+                                    onclick="window.bookReader.voteBook('${book.id}', 'up')">
+                                <span class="material-icons">thumb_up</span>
+                            </button>
+                            <button class="vote-btn vote-down ${(this.userVotes && this.userVotes[book.id]) === 'down' ? 'active' : ''}" 
+                                    onclick="window.bookReader.voteBook('${book.id}', 'down')">
+                                <span class="material-icons">thumb_down</span>
+                            </button>
+                        </div>
+                        <button class="read-btn" onclick="window.bookReader.showDemoBook('${book.id}')">
+                            Read Demo
+                        </button>
                     </div>
                 </div>
             `;
             
-            bookCard.addEventListener('click', () => {
-                this.openBook(book);
-            });
-            
             this.popularBooksGrid.appendChild(bookCard);
         });
+    }
+
+    formatNumber(num) {
+        if (num >= 1000000) {
+            return (num / 1000000).toFixed(1) + 'M';
+        } else if (num >= 1000) {
+            return (num / 1000).toFixed(1) + 'K';
+        }
+        return num.toString();
     }
 
     updateUserStats() {
@@ -1049,20 +1205,34 @@ class EpubReelsReader {
             // Show loading
             this.showNotification('Connecting to Google Drive...', 'info');
             
-            // Simulate Google Drive API integration
-            await new Promise(resolve => setTimeout(resolve, 1500));
+            // Initialize Google Drive service if not already done
+            if (!window.googleDriveService) {
+                window.googleDriveService = new GoogleDriveService();
+            }
             
-            // For now, just show success message
-            this.showNotification('Google Drive connected successfully!', 'success');
+            const initialized = await window.googleDriveService.initializeGoogleDrive();
+            if (!initialized) {
+                throw new Error('Google Drive API not configured. Please check CLOUD_SETUP.md');
+            }
             
-            // TODO: Implement actual Google Drive API integration
-            // - OAuth 2.0 authentication
-            // - File picker for EPUB files
-            // - Sync reading progress
+            const result = await window.googleDriveService.signIn();
+            if (result.error) {
+                throw new Error(result.error);
+            }
+            
+            // Show usage info
+            const usage = window.googleDriveService.getUsageInfo();
+            this.showNotification(`Google Drive connected! ${usage.rateLimits.uploads.remaining} uploads remaining today.`, 'success');
+            
+            // Update UI to show connected state
+            document.getElementById('googleDriveBtn').innerHTML = `
+                <i class="fas fa-check-circle"></i>
+                Connected: ${result.user.name}
+            `;
             
         } catch (error) {
             console.error('Google Drive connection failed:', error);
-            this.showNotification('Failed to connect to Google Drive', 'error');
+            this.showNotification(`Google Drive connection failed: ${error.message}`, 'error');
         }
     }
 
@@ -1071,32 +1241,562 @@ class EpubReelsReader {
             // Show loading
             this.showNotification('Connecting to Library...', 'info');
             
-            // Simulate Supabase connection
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            // Initialize Supabase service if not already done
+            if (!window.supabaseService) {
+                window.supabaseService = new SupabaseService();
+            }
             
-            // For now, just show success message
-            this.showNotification('Library connected successfully!', 'success');
+            const initialized = await window.supabaseService.initializeSupabase();
+            if (!initialized) {
+                throw new Error('Supabase not configured. Please check CLOUD_SETUP.md');
+            }
             
-            // TODO: Implement actual Supabase integration
-            // - User authentication
-            // - Book library management
-            // - Reading progress sync
-            // - Social features
+            // For now, just check connection - in production you'd implement sign up/in flow
+            const dashboard = window.supabaseService.getUsageDashboard();
+            this.showNotification(`Library connected! ${dashboard.rateLimits.apiCalls.remaining} API calls remaining.`, 'success');
+            
+            // Update UI to show connected state
+            document.getElementById('supabaseBtn').innerHTML = `
+                <i class="fas fa-check-circle"></i>
+                Library Connected
+            `;
             
         } catch (error) {
             console.error('Supabase connection failed:', error);
-            this.showNotification('Failed to connect to Library', 'error');
+            this.showNotification(`Library connection failed: ${error.message}`, 'error');
         }
     }
 
-    showLibrary() {
-        this.showNotification('Library feature coming soon!', 'info');
-        // TODO: Implement library view
+    // Enhanced file upload with cloud integration
+    async uploadToCloud(file) {
+        if (!file || !file.name.endsWith('.epub')) {
+            this.showNotification('Please select a valid EPUB file', 'error');
+            return;
+        }
+        
+        try {
+            // Try Google Drive first if connected
+            if (window.googleDriveService && window.googleDriveService.isSignedIn) {
+                this.showNotification('Uploading to Google Drive...', 'info');
+                
+                const result = await window.googleDriveService.uploadEpub(file, file.name);
+                if (result.success) {
+                    this.showNotification(`File uploaded successfully! File ID: ${result.fileId}`, 'success');
+                    
+                    // Also save metadata to Supabase if connected
+                    if (window.supabaseService && window.supabaseService.user) {
+                        await window.supabaseService.saveBookToLibrary({
+                            id: result.fileId,
+                            title: file.name.replace('.epub', ''),
+                            author: 'Unknown',
+                            driveFileId: result.fileId
+                        });
+                    }
+                    
+                    return result;
+                } else {
+                    throw new Error(result.error);
+                }
+            }
+            
+            // Fallback to local processing
+            this.showNotification('Processing file locally...', 'info');
+            return { success: true, local: true };
+            
+        } catch (error) {
+            console.error('Cloud upload error:', error);
+            this.showNotification(`Upload failed: ${error.message}`, 'error');
+            
+            // Always fallback to local processing
+            this.showNotification('Falling back to local processing...', 'info');
+            return { success: true, local: true };
+        }
     }
 
-    browseCategory(category) {
-        this.showNotification(`Browsing ${category} books...`, 'info');
-        // TODO: Implement category filtering
+    // Enhanced annotation saving with cloud sync
+    async saveAnnotationToCloud(annotation) {
+        try {
+            // Save to Supabase if connected
+            if (window.supabaseService && window.supabaseService.user) {
+                const result = await window.supabaseService.saveAnnotation({
+                    ...annotation,
+                    book_id: this.bookTitle || 'demo-book'
+                });
+                
+                if (result.success && !result.local) {
+                    console.log('Annotation synced to cloud');
+                }
+            }
+        } catch (error) {
+            console.warn('Cloud sync failed, saved locally:', error.message);
+        }
+    }
+
+    // Override the existing saveAnnotations method to include cloud sync
+    saveAnnotations() {
+        localStorage.setItem('annotations', JSON.stringify(this.annotations));
+        
+        // Sync latest annotation to cloud
+        if (this.annotations.length > 0) {
+            const latestAnnotation = this.annotations[this.annotations.length - 1];
+            this.saveAnnotationToCloud(latestAnnotation);
+        }
+    }
+
+    // Usage dashboard
+    showUsageDashboard() {
+        let dashboardHtml = '<h3>Cloud Usage Dashboard</h3>';
+        
+        // Add debug section
+        dashboardHtml += `
+            <div class="usage-section">
+                <h4>🐛 Debug Information</h4>
+                <div class="debug-controls">
+                    <button onclick="window.debugSupabase()" style="padding: 8px 16px; margin: 4px; background: var(--primary-color); color: white; border: none; border-radius: 4px; cursor: pointer;">
+                        Test Supabase Connection
+                    </button>
+                    <button onclick="window.debugGoogleDrive()" style="padding: 8px 16px; margin: 4px; background: var(--secondary-color); color: white; border: none; border-radius: 4px; cursor: pointer;">
+                        Test Google Drive
+                    </button>
+                </div>
+                <div id="debugOutput" style="background: #1a1a1a; color: #00ff00; padding: 16px; border-radius: 8px; margin-top: 12px; font-family: monospace; font-size: 12px; max-height: 200px; overflow-y: auto;">
+                    Debug output will appear here...
+                </div>
+            </div>
+        `;
+        
+        if (window.supabaseService) {
+            const supabaseDashboard = window.supabaseService.getUsageDashboard();
+            dashboardHtml += `
+                <div class="usage-section">
+                    <h4>📊 Supabase (Database)</h4>
+                    <div class="usage-grid">
+                        <div>API Calls: ${supabaseDashboard.rateLimits.apiCalls.used}/${supabaseDashboard.rateLimits.apiCalls.total}</div>
+                        <div>Annotations: ${supabaseDashboard.rateLimits.annotations.used}/${supabaseDashboard.rateLimits.annotations.total}</div>
+                        <div>Storage Limit: ${(supabaseDashboard.storageLimits.totalStorage / (1024*1024)).toFixed(0)}MB</div>
+                        <div>Status: ${window.supabaseService.isConnected ? '✅ Connected' : '❌ Not Connected'}</div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        if (window.googleDriveService) {
+            const driveInfo = window.googleDriveService.getUsageInfo();
+            dashboardHtml += `
+                <div class="usage-section">
+                    <h4>💾 Google Drive</h4>
+                    <div class="usage-grid">
+                        <div>Uploads: ${driveInfo.rateLimits.uploads.used}/${driveInfo.rateLimits.uploads.total}</div>
+                        <div>Downloads: ${driveInfo.rateLimits.downloads.used}/${driveInfo.rateLimits.downloads.total}</div>
+                        <div>Max File Size: ${(driveInfo.storageLimits.maxFileSize / (1024*1024)).toFixed(0)}MB</div>
+                        <div>Status: ${driveInfo.isSignedIn ? '✅ Signed In' : '❌ Not Signed In'}</div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Create modal to show dashboard
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay active';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Usage Dashboard</h3>
+                    <button class="close-modal" onclick="this.closest('.modal-overlay').remove()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div style="padding: 24px;">
+                    ${dashboardHtml}
+                    <p style="margin-top: 20px; font-size: 14px; color: var(--on-surface-variant);">
+                        📖 See CLOUD_SETUP.md for setup instructions and rate limit details.
+                    </p>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        // Set up debug functions
+        window.debugSupabase = async () => {
+            const output = document.getElementById('debugOutput');
+            output.innerHTML = 'Testing Supabase connection...\n';
+            
+            try {
+                if (!window.supabaseService) {
+                    window.supabaseService = new SupabaseService();
+                    output.innerHTML += 'Created new SupabaseService instance\n';
+                }
+                
+                const result = await window.supabaseService.initializeSupabase();
+                output.innerHTML += `Initialization result: ${result}\n`;
+                output.innerHTML += `Connection status: ${window.supabaseService.isConnected}\n`;
+                
+                if (window.supabaseService.supabase) {
+                    output.innerHTML += 'Supabase client exists\n';
+                    
+                    // Test a simple query
+                    const { data, error } = await window.supabaseService.supabase.from('user_stats').select('count').limit(1);
+                    if (error) {
+                        output.innerHTML += `Query error: ${error.message}\n`;
+                        output.innerHTML += `Error code: ${error.code}\n`;
+                        if (error.message.includes('relation') && error.message.includes('does not exist')) {
+                            output.innerHTML += '💡 Tables need to be created. Run SQL from CLOUD_SETUP.md\n';
+                        }
+                    } else {
+                        output.innerHTML += 'Query successful!\n';
+                    }
+                } else {
+                    output.innerHTML += 'Supabase client not created\n';
+                }
+                
+            } catch (error) {
+                output.innerHTML += `Debug error: ${error.message}\n`;
+            }
+        };
+        
+        window.debugGoogleDrive = async () => {
+            const output = document.getElementById('debugOutput');
+            output.innerHTML = 'Testing Google Drive connection...\n';
+            
+            try {
+                if (!window.googleDriveService) {
+                    window.googleDriveService = new GoogleDriveService();
+                    output.innerHTML += 'Created new GoogleDriveService instance\n';
+                }
+                
+                const result = await window.googleDriveService.initializeGoogleDrive();
+                output.innerHTML += `Google Drive initialization: ${result}\n`;
+                output.innerHTML += `Signed in status: ${window.googleDriveService.isSignedIn}\n`;
+                
+            } catch (error) {
+                output.innerHTML += `Debug error: ${error.message}\n`;
+            }
+        };
+    }
+
+    // Social Features
+    toggleSocialPanel() {
+        this.socialPanel.classList.toggle('active');
+        this.populateSocialContent('reviews');
+    }
+
+    closeSocialPanel() {
+        this.socialPanel.classList.remove('active');
+    }
+
+    switchSocialTab(tab) {
+        document.querySelectorAll('.social-tab').forEach(t => {
+            t.classList.toggle('active', t.dataset.tab === tab);
+        });
+        this.populateSocialContent(tab);
+    }
+
+    populateSocialContent(tab) {
+        const content = this.getSocialContent(tab);
+        this.socialContent.innerHTML = '';
+        
+        content.forEach(item => {
+            const socialItem = document.createElement('div');
+            socialItem.className = 'social-item';
+            socialItem.innerHTML = `
+                <div class="social-user">
+                    <div class="user-avatar">${item.user.charAt(0).toUpperCase()}</div>
+                    <div class="user-info">
+                        <div class="user-name">${item.user}</div>
+                        <div class="user-meta">${item.time}</div>
+                    </div>
+                </div>
+                <div class="social-text">${item.content}</div>
+                <div class="social-actions">
+                    <span class="social-action">
+                        <i class="fas fa-heart"></i>
+                        ${item.likes}
+                    </span>
+                    <span class="social-action">
+                        <i class="fas fa-comment"></i>
+                        ${item.comments}
+                    </span>
+                    <span class="social-action">
+                        <i class="fas fa-share"></i>
+                        Share
+                    </span>
+                </div>
+            `;
+            this.socialContent.appendChild(socialItem);
+        });
+    }
+
+    getSocialContent(tab) {
+        const mockData = {
+            reviews: [
+                {
+                    user: "Alice Reader",
+                    time: "2 days ago",
+                    content: "Absolutely brilliant! The reels format makes reading so engaging. I finished this book in one sitting!",
+                    likes: 24,
+                    comments: 5
+                },
+                {
+                    user: "BookLover99",
+                    time: "1 week ago", 
+                    content: "Revolutionary reading experience. This is the future of digital books!",
+                    likes: 18,
+                    comments: 3
+                }
+            ],
+            discussions: [
+                {
+                    user: "Philosophy Fan",
+                    time: "3 hours ago",
+                    content: "Chapter 2 really made me think about the nature of reality. What did everyone else think?",
+                    likes: 12,
+                    comments: 8
+                }
+            ],
+            quotes: [
+                {
+                    user: "Quote Master",
+                    time: "1 day ago",
+                    content: '"The best way to predict the future is to create it." - This line hit different in reels format!',
+                    likes: 31,
+                    comments: 7
+                }
+            ]
+        };
+        
+        return mockData[tab] || [];
+    }
+
+    shareProgress() {
+        const progress = Math.round(((this.currentPageIndex + 1) / this.pages.length) * 100);
+        const text = `I'm ${progress}% through "${this.bookTitle}" on The Book Project! 📚 The reels format is amazing! #TheBookProject #Reading`;
+        
+        if (navigator.share) {
+            navigator.share({
+                title: 'My Reading Progress',
+                text: text,
+                url: window.location.href
+            });
+        } else {
+            navigator.clipboard.writeText(text);
+            this.showNotification('Progress copied to clipboard!', 'success');
+        }
+    }
+
+    // Reading Challenges
+    getChallenges() {
+        return [
+            {
+                id: 1,
+                title: "Speed Reader",
+                description: "Read 5 books this month",
+                icon: "🚀",
+                progress: 60,
+                current: 3,
+                target: 5,
+                reward: "Speed Badge",
+                completed: false
+            },
+            {
+                id: 2,
+                title: "Night Owl",
+                description: "Read for 7 consecutive days",
+                icon: "🦉",
+                progress: 100,
+                current: 7,
+                target: 7,
+                reward: "Night Badge",
+                completed: true
+            },
+            {
+                id: 3,
+                title: "Explorer",
+                description: "Read books from 3 different genres",
+                icon: "🗺️",
+                progress: 33,
+                current: 1,
+                target: 3,
+                reward: "Explorer Badge",
+                completed: false
+            },
+            {
+                id: 4,
+                title: "Marathon Reader",
+                description: "Read for 10 hours this week",
+                icon: "⏰",
+                progress: 70,
+                current: 7,
+                target: 10,
+                reward: "Marathon Badge",
+                completed: false
+            }
+        ];
+    }
+
+    showChallengesModal() {
+        this.challengesModal.classList.add('active');
+        this.populateChallenges();
+    }
+
+    closeChallengesModal() {
+        this.challengesModal.classList.remove('active');
+    }
+
+    populateChallenges() {
+        this.challengesGrid.innerHTML = '';
+        
+        this.challenges.forEach(challenge => {
+            const card = document.createElement('div');
+            card.className = `challenge-card ${challenge.completed ? 'completed' : ''}`;
+            card.innerHTML = `
+                <div class="challenge-icon">${challenge.icon}</div>
+                <div class="challenge-title">${challenge.title}</div>
+                <div class="challenge-description">${challenge.description}</div>
+                <div class="challenge-progress">
+                    <div class="challenge-progress-fill" style="width: ${challenge.progress}%"></div>
+                </div>
+                <div class="challenge-stats">
+                    <span>${challenge.current}/${challenge.target}</span>
+                    <span class="challenge-reward">${challenge.reward}</span>
+                </div>
+            `;
+            this.challengesGrid.appendChild(card);
+        });
+    }
+
+    // Advanced Settings
+    showSettingsModal() {
+        this.settingsModal.classList.add('active');
+        this.loadSettings();
+        
+        // Add theme selection if not already present
+        if (!document.querySelector('.theme-options')) {
+            const settingsContent = document.querySelector('.settings-content');
+            if (settingsContent) {
+                settingsContent.insertAdjacentHTML('beforeend', this.themeSelectionHTML);
+                
+                // Bind theme selection events
+                document.querySelectorAll('.theme-option').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const themeName = btn.dataset.theme;
+                        this.applyColorTheme(themeName);
+                        this.showNotification(`Theme changed to ${themeName}!`, 'success');
+                    });
+                });
+            }
+        }
+    }
+
+    closeSettingsModal() {
+        this.settingsModal.classList.remove('active');
+    }
+
+    loadSettings() {
+        // Load current settings into the form
+        const savedSettings = localStorage.getItem('readerSettings');
+        if (savedSettings) {
+            const settings = JSON.parse(savedSettings);
+            document.getElementById('fontFamily').value = settings.fontFamily || 'Georgia';
+            document.getElementById('lineHeight').value = settings.lineHeight || '1.8';
+            document.getElementById('readingWidth').value = settings.readingWidth || '650';
+            document.getElementById('autoScrollSpeed').value = settings.autoScrollSpeed || '0';
+            document.getElementById('pageAnimation').value = settings.pageAnimation || 'slide';
+            
+            this.updateRangeValues();
+        }
+    }
+
+    updateRangeValues() {
+        document.querySelectorAll('input[type="range"]').forEach(range => {
+            const valueSpan = range.nextElementSibling;
+            if (valueSpan && valueSpan.classList.contains('range-value')) {
+                if (range.id === 'autoScrollSpeed') {
+                    valueSpan.textContent = range.value === '0' ? 'Off' : range.value;
+                } else if (range.id === 'readingWidth') {
+                    valueSpan.textContent = range.value + 'px';
+                } else {
+                    valueSpan.textContent = range.value;
+                }
+                
+                range.addEventListener('input', () => {
+                    if (range.id === 'autoScrollSpeed') {
+                        valueSpan.textContent = range.value === '0' ? 'Off' : range.value;
+                    } else if (range.id === 'readingWidth') {
+                        valueSpan.textContent = range.value + 'px';
+                    } else {
+                        valueSpan.textContent = range.value;
+                    }
+                });
+            }
+        });
+    }
+
+    updateFontFamily(fontFamily) {
+        document.documentElement.style.setProperty('--font-reading', fontFamily);
+        this.saveSettings();
+    }
+
+    updateLineHeight(lineHeight) {
+        const pageContents = document.querySelectorAll('.page-content');
+        pageContents.forEach(content => {
+            content.style.lineHeight = lineHeight;
+        });
+        this.saveSettings();
+    }
+
+    updateReadingWidth(width) {
+        const pageContents = document.querySelectorAll('.page-content');
+        pageContents.forEach(content => {
+            content.style.maxWidth = width + 'px';
+        });
+        this.saveSettings();
+    }
+
+    updateAutoScrollSpeed(speed) {
+        // TODO: Implement auto-scroll functionality
+        this.saveSettings();
+    }
+
+    updatePageAnimation(animation) {
+        // TODO: Implement different page animations
+        this.saveSettings();
+    }
+
+    saveSettings() {
+        const settings = {
+            fontFamily: document.getElementById('fontFamily').value,
+            lineHeight: document.getElementById('lineHeight').value,
+            readingWidth: document.getElementById('readingWidth').value,
+            autoScrollSpeed: document.getElementById('autoScrollSpeed').value,
+            pageAnimation: document.getElementById('pageAnimation').value
+        };
+        localStorage.setItem('readerSettings', JSON.stringify(settings));
+        this.showNotification('Settings saved!', 'success');
+    }
+
+    populateAnnotationsList() {
+        this.annotationsList.innerHTML = '';
+        
+        this.annotations.forEach(annotation => {
+            const item = document.createElement('div');
+            item.className = `annotation-item ${annotation.type}`;
+            item.innerHTML = `
+                <div class="annotation-meta">
+                    <span class="annotation-page">Page ${annotation.pageIndex + 1}</span>
+                    <span>${new Date(annotation.timestamp).toLocaleDateString()}</span>
+                </div>
+                <div class="annotation-text">"${annotation.text}"</div>
+                ${annotation.note ? `<div class="annotation-note">${annotation.note}</div>` : ''}
+            `;
+            
+            item.addEventListener('click', () => {
+                this.goToPage(annotation.pageIndex);
+                this.closeAnnotationsPanel();
+            });
+            
+            this.annotationsList.appendChild(item);
+        });
     }
 
     openBook(book) {
@@ -1142,9 +1842,629 @@ class EpubReelsReader {
             }, 300);
         }, 3000);
     }
+
+    // Phase 3: Advanced Features Implementation
+    
+    // Annotations System
+    getAnnotations() {
+        const saved = localStorage.getItem('annotations');
+        return saved ? JSON.parse(saved) : [];
+    }
+
+    toggleAnnotationsPanel() {
+        this.annotationsPanel.classList.toggle('active');
+        this.populateAnnotationsList();
+    }
+
+    closeAnnotationsPanel() {
+        this.annotationsPanel.classList.remove('active');
+        this.currentAnnotationMode = null;
+        this.updateAnnotationTools();
+        this.updateCustomCursor();
+        
+        // Disable text selection when closing annotations
+        document.body.classList.remove('annotation-mode', 'annotation-highlight', 'annotation-note', 'annotation-bookmark');
+    }
+
+    setAnnotationMode(mode) {
+        this.currentAnnotationMode = mode;
+        this.updateAnnotationTools();
+        this.updateCustomCursor();
+        
+        // Clear previous annotation mode classes
+        document.body.classList.remove('annotation-mode', 'annotation-highlight', 'annotation-note', 'annotation-bookmark');
+        
+        // Enable text selection when annotation mode is active
+        if (mode) {
+            document.body.classList.add('annotation-mode', `annotation-${mode}`);
+        }
+        
+        this.showNotification(`${mode} mode activated - select text to annotate`, 'info');
+    }
+
+    updateAnnotationTools() {
+        document.querySelectorAll('.annotation-tool').forEach(tool => {
+            if (tool.dataset.type === this.currentAnnotationMode) {
+                tool.classList.add('active');
+            } else {
+                tool.classList.remove('active');
+            }
+        });
+    }
+
+    handleTextSelection() {
+        const selection = window.getSelection();
+        if (selection.rangeCount > 0 && !selection.isCollapsed) {
+            const range = selection.getRangeAt(0);
+            const selectedText = selection.toString().trim();
+            
+            // Check if selection is within page content
+            const pageContent = document.querySelector('.book-page.slide-current .page-content');
+            if (!pageContent || !pageContent.contains(range.commonAncestorContainer)) {
+                return;
+            }
+            
+            if (selectedText.length > 0 && this.currentAnnotationMode) {
+                this.selectedText = selectedText;
+                this.selectionRange = range;
+                this.createAnnotation();
+            }
+        }
+    }
+
+    createAnnotation() {
+        if (!this.selectedText || !this.currentAnnotationMode) return;
+
+        const annotation = {
+            id: Date.now(),
+            type: this.currentAnnotationMode,
+            text: this.selectedText,
+            pageIndex: this.currentPageIndex,
+            chapterIndex: this.pages[this.currentPageIndex]?.chapterIndex || 0,
+            timestamp: new Date().toISOString(),
+            note: ''
+        };
+
+        if (this.currentAnnotationMode === 'note') {
+            const note = prompt('Add your note:');
+            if (note) {
+                annotation.note = note;
+            } else {
+                return; // User cancelled
+            }
+        }
+
+        this.annotations.push(annotation);
+        this.saveAnnotations();
+        this.applyAnnotationToCurrentPage(annotation);
+        this.populateAnnotationsList();
+        this.showNotification(`${this.currentAnnotationMode} added successfully!`, 'success');
+        
+        // Clear selection
+        window.getSelection().removeAllRanges();
+        this.selectedText = '';
+        this.selectionRange = null;
+    }
+
+    applyAnnotationToCurrentPage(annotation) {
+        const currentPage = document.querySelector('.book-page.slide-current .page-content');
+        if (!currentPage) return;
+
+        const text = annotation.text;
+        let html = currentPage.innerHTML;
+        
+        // Create a more specific regex to avoid conflicts
+        const escapedText = text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(`(?<!<[^>]*)(${escapedText})(?![^<]*>)`, 'gi');
+        
+        if (annotation.type === 'highlight') {
+            html = html.replace(regex, `<span class="highlight" data-annotation="${annotation.id}">$1</span>`);
+        } else if (annotation.type === 'note') {
+            html = html.replace(regex, `$1<span class="note-marker" data-annotation="${annotation.id}" title="${annotation.note}">📝</span>`);
+        } else if (annotation.type === 'bookmark') {
+            // For bookmarks, we'll add a bookmark icon at the beginning of the paragraph
+            const firstP = currentPage.querySelector('p');
+            if (firstP && !firstP.querySelector('.bookmark-marker')) {
+                firstP.insertAdjacentHTML('afterbegin', `<span class="bookmark-marker" data-annotation="${annotation.id}" title="Bookmarked">🔖</span> `);
+            }
+        }
+        
+        currentPage.innerHTML = html;
+        this.bindAnnotationEvents();
+    }
+
+    bindAnnotationEvents() {
+        // Add click events to annotation markers
+        document.querySelectorAll('[data-annotation]').forEach(marker => {
+            marker.addEventListener('click', (e) => {
+                e.preventDefault();
+                const annotationId = marker.dataset.annotation;
+                this.showAnnotationDetail(annotationId);
+            });
+        });
+    }
+
+    showAnnotationDetail(annotationId) {
+        const annotation = this.annotations.find(a => a.id == annotationId);
+        if (annotation) {
+            if (annotation.type === 'note' && annotation.note) {
+                alert(`Note: ${annotation.note}`);
+            } else if (annotation.type === 'bookmark') {
+                this.showNotification('Bookmark - page saved to your bookmarks', 'info');
+            }
+        }
+    }
+
+    // Fix bookmarks functionality
+    saveBookmark() {
+        if (this.pages.length === 0) return;
+        
+        const bookmark = {
+            id: Date.now(),
+            type: 'bookmark',
+            text: `Page ${this.currentPageIndex + 1}`,
+            pageIndex: this.currentPageIndex,
+            chapterIndex: this.pages[this.currentPageIndex]?.chapterIndex || 0,
+            chapterTitle: this.pages[this.currentPageIndex]?.chapterTitle || 'Unknown Chapter',
+            timestamp: new Date().toISOString(),
+            note: `Bookmarked at ${new Date().toLocaleString()}`
+        };
+
+        this.annotations.push(bookmark);
+        this.saveAnnotations();
+        this.populateAnnotationsList();
+        this.showNotification('Page bookmarked successfully!', 'success');
+    }
+
+    // Apply annotations when page changes
+    applyAnnotationsToPage() {
+        const currentPage = document.querySelector('.book-page.slide-current .page-content');
+        if (!currentPage) return;
+
+        // Find annotations for current page
+        const pageAnnotations = this.annotations.filter(a => a.pageIndex === this.currentPageIndex);
+        
+        pageAnnotations.forEach(annotation => {
+            this.applyAnnotationToCurrentPage(annotation);
+        });
+    }
+
+    initializeCustomCursor() {
+        // Create custom cursor element
+        this.customCursor = document.createElement('div');
+        this.customCursor.className = 'custom-cursor';
+        document.body.appendChild(this.customCursor);
+        
+        // Mouse move handler
+        document.addEventListener('mousemove', (e) => {
+            this.customCursor.style.left = e.clientX + 'px';
+            this.customCursor.style.top = e.clientY + 'px';
+        });
+        
+        // Hover effects for interactive elements
+        const interactiveElements = 'button, a, input, select, .menu-item, .book-card, .category-card, .control-btn, .annotation-tool';
+        
+        document.addEventListener('mouseenter', (e) => {
+            if (e.target && typeof e.target.matches === 'function' && e.target.matches(interactiveElements)) {
+                this.customCursor.classList.add('hover');
+            }
+        }, true);
+        
+        document.addEventListener('mouseleave', (e) => {
+            if (e.target && typeof e.target.matches === 'function' && e.target.matches(interactiveElements)) {
+                this.customCursor.classList.remove('hover');
+            }
+        }, true);
+        
+        // Click effects
+        document.addEventListener('mousedown', () => {
+            this.customCursor.classList.add('click');
+        });
+        
+        document.addEventListener('mouseup', () => {
+            this.customCursor.classList.remove('click');
+        });
+        
+        // Hide cursor when mouse leaves window
+        document.addEventListener('mouseleave', () => {
+            this.customCursor.style.opacity = '0';
+        });
+        
+        document.addEventListener('mouseenter', () => {
+            this.customCursor.style.opacity = '1';
+        });
+    }
+
+    updateCustomCursor() {
+        // Remove all annotation classes
+        this.customCursor.classList.remove('annotation-highlight', 'annotation-note', 'annotation-bookmark');
+        
+        // Add current annotation mode class
+        if (this.currentAnnotationMode) {
+            this.customCursor.classList.add(`annotation-${this.currentAnnotationMode}`);
+        }
+    }
+
+    async initializeBookAPI() {
+        try {
+            this.bookAPIService = new BookAPIService();
+            console.log('📚 Book API Service initialized');
+            
+            // Try to load real popular books
+            await this.loadRealPopularBooks();
+        } catch (error) {
+            console.error('Book API initialization failed:', error);
+            // Fall back to static books
+            this.popularBooks = this.getFallbackPopularBooks();
+        }
+    }
+
+    async loadRealPopularBooks() {
+        try {
+            if (this.bookAPIService) {
+                console.log('🔄 Loading popular books from APIs...');
+                const apiBooks = await this.bookAPIService.getPopularBooks(24);
+                
+                if (apiBooks && apiBooks.length > 0) {
+                    // Convert API format to our format
+                    this.popularBooks = apiBooks.map(book => ({
+                        id: book.id,
+                        title: book.title,
+                        author: book.author,
+                        rating: parseFloat(book.rating.toFixed(1)),
+                        ratingsCount: book.ratingsCount,
+                        cover: this.getBookCoverDisplay(book),
+                        description: book.description,
+                        categories: book.categories,
+                        source: book.source,
+                        category: this.mapCategory(book.categories)
+                    }));
+                    
+                    console.log(`✅ Loaded ${this.popularBooks.length} books from APIs`);
+                    
+                    // Update homepage if it's currently visible
+                    if (this.currentView === 'homepage') {
+                        this.populatePopularBooks();
+                    }
+                } else {
+                    console.log('⚠️ No books from APIs, using fallback');
+                    this.popularBooks = this.getFallbackPopularBooks();
+                }
+            }
+        } catch (error) {
+            console.error('Failed to load real books:', error);
+            this.popularBooks = this.getFallbackPopularBooks();
+        }
+    }
+
+    getBookCoverDisplay(book) {
+        // If it's a real image URL, use it; otherwise use emoji fallback
+        if (book.cover && book.cover.startsWith('http')) {
+            return book.cover;
+        }
+        
+        // Generate emoji based on category or title
+        const categoryEmojis = {
+            'Fiction': '📚',
+            'Romance': '💕',
+            'Mystery': '🔍',
+            'Science Fiction': '🚀',
+            'Fantasy': '🧙‍♂️',
+            'Thriller': '⚡',
+            'Self-Help': '⚛️',
+            'Biography': '👤',
+            'History': '📜',
+            'Classic': '👑',
+            'Contemporary': '✨',
+            'Literature': '📖'
+        };
+        
+        // Try to match category
+        for (const [category, emoji] of Object.entries(categoryEmojis)) {
+            if (book.categories?.some(cat => cat.toLowerCase().includes(category.toLowerCase()))) {
+                return emoji;
+            }
+        }
+        
+        // Default fallback
+        return '📚';
+    }
+
+    mapCategory(categories) {
+        if (!categories || categories.length === 0) return 'fiction';
+        
+        const category = categories[0].toLowerCase();
+        
+        if (category.includes('romance')) return 'romance';
+        if (category.includes('mystery') || category.includes('thriller')) return 'mystery';
+        if (category.includes('science') || category.includes('sci-fi')) return 'sci-fi';
+        if (category.includes('fantasy')) return 'fantasy';
+        if (category.includes('classic')) return 'classic';
+        if (category.includes('self-help') || category.includes('productivity')) return 'non-fiction';
+        
+        return 'fiction';
+    }
+
+    // Keep fallback method for when APIs fail
+    getFallbackPopularBooks() {
+        return [
+            {
+                id: 1,
+                title: "The Seven Husbands of Evelyn Hugo",
+                author: "Taylor Jenkins Reid",
+                rating: 4.8,
+                ratingsCount: 234567,
+                cover: "📚",
+                category: "fiction",
+                source: "Curated"
+            },
+            {
+                id: 2,
+                title: "Atomic Habits",
+                author: "James Clear",
+                rating: 4.7,
+                ratingsCount: 187432,
+                cover: "⚛️",
+                category: "non-fiction",
+                source: "Curated"
+            },
+            {
+                id: 3,
+                title: "Project Hail Mary",
+                author: "Andy Weir",
+                rating: 4.9,
+                ratingsCount: 156789,
+                cover: "🚀",
+                category: "sci-fi",
+                source: "Curated"
+            },
+            {
+                id: 4,
+                title: "The Silent Patient",
+                author: "Alex Michaelides",
+                rating: 4.5,
+                ratingsCount: 298765,
+                cover: "🔍",
+                category: "mystery",
+                source: "Curated"
+            },
+            {
+                id: 5,
+                title: "It Ends with Us",
+                author: "Colleen Hoover",
+                rating: 4.6,
+                ratingsCount: 445321,
+                cover: "💕",
+                category: "romance",
+                source: "Curated"
+            },
+            {
+                id: 6,
+                title: "1984",
+                author: "George Orwell",
+                rating: 4.8,
+                ratingsCount: 1234567,
+                cover: "👁️",
+                category: "classic",
+                source: "Curated"
+            }
+        ];
+    }
+
+    initializeVotingSystem() {
+        this.userVotes = this.loadUserVotes() || {};
+        console.log('🗳️ Voting system initialized');
+    }
+
+    loadUserVotes() {
+        try {
+            const saved = localStorage.getItem('bookVotes');
+            return saved ? JSON.parse(saved) : {};
+        } catch (error) {
+            console.warn('Error loading user votes:', error);
+            return {};
+        }
+    }
+
+    saveUserVotes() {
+        localStorage.setItem('bookVotes', JSON.stringify(this.userVotes));
+    }
+
+    voteBook(bookId, voteType) {
+        // voteType: 'up' or 'down'
+        const previousVote = this.userVotes[bookId];
+        
+        if (previousVote === voteType) {
+            // Remove vote if clicking same vote type
+            delete this.userVotes[bookId];
+        } else {
+            // Set new vote
+            this.userVotes[bookId] = voteType;
+        }
+        
+        this.saveUserVotes();
+        this.updateBookVoteDisplay(bookId);
+        this.showNotification(`Book ${voteType}voted!`, 'success');
+    }
+
+    updateBookVoteDisplay(bookId) {
+        const bookCard = document.querySelector(`[data-book-id="${bookId}"]`);
+        if (bookCard) {
+            const upBtn = bookCard.querySelector('.vote-up');
+            const downBtn = bookCard.querySelector('.vote-down');
+            const vote = this.userVotes[bookId];
+            
+            // Reset styles
+            upBtn?.classList.remove('active');
+            downBtn?.classList.remove('active');
+            
+            // Apply active style
+            if (vote === 'up') upBtn?.classList.add('active');
+            if (vote === 'down') downBtn?.classList.add('active');
+        }
+    }
+
+    backToHomepage() {
+        // Stop any auto-scrolling
+        if (this.autoScrollInterval) {
+            clearInterval(this.autoScrollInterval);
+            this.autoScrollInterval = null;
+        }
+        
+        // Reset reader state
+        this.currentPageIndex = 0;
+        this.reelsContainer.innerHTML = '';
+        
+        // Show homepage
+        this.showHomepage();
+        this.showNotification('Returned to homepage', 'info');
+    }
+
+    showDemoBook(bookId = null) {
+        // Find the book if ID is provided
+        if (bookId) {
+            const book = this.popularBooks.find(b => b.id === bookId);
+            if (book) {
+                this.showNotification(`Loading "${book.title}"...`, 'info');
+                // Here you could load the actual book content
+                // For now, we'll show the demo
+            }
+        }
+        
+        this.currentView = 'reader';
+        this.loadDemoBook();
+        this.hideHomepage();
+        this.showReaderInterface();
+    }
+
+    renderStars(rating) {
+        const fullStars = Math.floor(rating);
+        const hasHalfStar = rating % 1 >= 0.5;
+        const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
+        
+        let starsHTML = '';
+        
+        // Full stars
+        for (let i = 0; i < fullStars; i++) {
+            starsHTML += '<i class="fas fa-star"></i>';
+        }
+        
+        // Half star
+        if (hasHalfStar) {
+            starsHTML += '<i class="fas fa-star-half-alt"></i>';
+        }
+        
+        // Empty stars
+        for (let i = 0; i < emptyStars; i++) {
+            starsHTML += '<i class="far fa-star"></i>';
+        }
+        
+        return starsHTML;
+    }
+
+    initializeMaterialYouTheming() {
+        // Set up dynamic color theming
+        this.currentColorTheme = localStorage.getItem('materialYouTheme') || 'purple';
+        this.applyColorTheme(this.currentColorTheme);
+        
+        // Add theme selection UI to settings
+        this.addThemeSelectionToSettings();
+        
+        console.log('🎨 Material You theming initialized');
+    }
+
+    applyColorTheme(themeName) {
+        // Remove existing theme classes
+        const themes = ['theme-purple', 'theme-blue', 'theme-green', 'theme-orange', 'theme-red'];
+        themes.forEach(theme => {
+            document.documentElement.classList.remove(theme);
+        });
+        
+        // Apply new theme
+        if (themes.includes(`theme-${themeName}`)) {
+            document.documentElement.classList.add(`theme-${themeName}`);
+            this.currentColorTheme = themeName;
+            localStorage.setItem('materialYouTheme', themeName);
+            
+            // Update any UI elements that need the new colors
+            this.updateThemeIndicators();
+        }
+    }
+
+    updateThemeIndicators() {
+        // Update any visual indicators of the current theme
+        const themeButtons = document.querySelectorAll('.theme-option');
+        themeButtons.forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.theme === this.currentColorTheme);
+        });
+    }
+
+    addThemeSelectionToSettings() {
+        // This will be called when settings modal is opened to add theme selection
+        const themes = [
+            { name: 'purple', label: 'Purple', color: '#6750A4' },
+            { name: 'blue', label: 'Blue', color: '#1976D2' },
+            { name: 'green', label: 'Green', color: '#388E3C' },
+            { name: 'orange', label: 'Orange', color: '#F57C00' },
+            { name: 'red', label: 'Red', color: '#D32F2F' }
+        ];
+        
+        this.themeSelectionHTML = `
+            <div class="setting-group">
+                <h4>🎨 Color Theme</h4>
+                <div class="theme-options">
+                    ${themes.map(theme => `
+                        <button class="theme-option ${theme.name === this.currentColorTheme ? 'active' : ''}" 
+                                data-theme="${theme.name}" 
+                                style="background-color: ${theme.color}"
+                                title="${theme.label}">
+                            <span class="theme-check">✓</span>
+                        </button>
+                    `).join('')}
+                </div>
+                <p class="setting-description">Choose your preferred accent color for the Material You theme</p>
+            </div>
+        `;
+    }
+
+    // Extract colors from book cover (for future enhancement)
+    extractColorsFromCover(imageUrl) {
+        // This is a placeholder for future color extraction
+        // In a full implementation, you'd use a library like ColorThief
+        // to extract dominant colors from book covers
+        return new Promise((resolve) => {
+            // For now, return a random theme
+            const themes = ['purple', 'blue', 'green', 'orange', 'red'];
+            const randomTheme = themes[Math.floor(Math.random() * themes.length)];
+            resolve(randomTheme);
+        });
+    }
+
+    // Override existing showSettingsModal to include theme selection
+    showSettingsModal() {
+        this.settingsModal.classList.add('active');
+        this.loadSettings();
+        
+        // Add theme selection if not already present
+        if (!document.querySelector('.theme-options')) {
+            const settingsContent = document.querySelector('.settings-content');
+            if (settingsContent) {
+                settingsContent.insertAdjacentHTML('beforeend', this.themeSelectionHTML);
+                
+                // Bind theme selection events
+                document.querySelectorAll('.theme-option').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const themeName = btn.dataset.theme;
+                        this.applyColorTheme(themeName);
+                        this.showNotification(`Theme changed to ${themeName}!`, 'success');
+                    });
+                });
+            }
+        }
+    }
 }
 
 // Initialize the app when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    new EpubReelsReader();
+    window.bookReader = new EpubReelsReader();
 }); 
