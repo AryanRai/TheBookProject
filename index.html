@@ -11,18 +11,28 @@
 <body>
     <div class="app-container">
         <!-- Header -->
-        <header class="header">
+        <header class="header" id="header">
             <div class="header-content">
                 <button class="back-btn" id="backBtn">
                     <i class="fas fa-arrow-left"></i>
                 </button>
                 <h1 class="book-title" id="bookTitle">Loading...</h1>
-                <button class="menu-btn" id="menuBtn">
-                    <i class="fas fa-ellipsis-v"></i>
-                </button>
+                <div class="header-controls">
+                    <button class="theme-toggle" id="themeToggle" title="Toggle Dark Mode">
+                        <i class="fas fa-moon"></i>
+                        <i class="fas fa-sun"></i>
+                    </button>
+                    <button class="fullscreen-btn" id="fullscreenBtn" title="Toggle Fullscreen">
+                        <i class="fas fa-expand"></i>
+                    </button>
+                    <button class="menu-btn" id="menuBtn">
+                        <i class="fas fa-ellipsis-v"></i>
+                    </button>
+                </div>
             </div>
-            <div class="progress-bar">
+            <div class="progress-bar" id="progressBar">
                 <div class="progress-fill" id="progressFill"></div>
+                <div class="chapter-markers" id="chapterMarkers"></div>
             </div>
         </header>
 
@@ -97,11 +107,130 @@
                         Load Demo Book
                     </button>
                 </div>
+                
+                <div class="cloud-section">
+                    <p>Connect your cloud storage:</p>
+                    <div class="cloud-buttons">
+                        <button class="cloud-btn" id="googleDriveBtn">
+                            <i class="fab fa-google-drive"></i>
+                            Google Drive
+                        </button>
+                        <button class="cloud-btn" id="supabaseBtn">
+                            <i class="fas fa-cloud"></i>
+                            Library
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Homepage with Popular Books -->
+        <div class="homepage" id="homepage">
+            <div class="homepage-header">
+                <div class="header-content">
+                    <h1 class="app-title">
+                        <i class="fas fa-book-reader"></i>
+                        The Book Project
+                    </h1>
+                    <div class="header-controls">
+                        <button class="theme-toggle" id="homepageThemeToggle" title="Toggle Dark Mode">
+                            <i class="fas fa-moon"></i>
+                            <i class="fas fa-sun"></i>
+                        </button>
+                        <button class="profile-btn" id="profileBtn" title="Profile">
+                            <i class="fas fa-user"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="homepage-content">
+                <section class="hero-section">
+                    <h2>Discover Books Like Never Before</h2>
+                    <p>Experience your favorite stories in a revolutionary reels-style format</p>
+                    <div class="hero-actions">
+                        <button class="action-btn primary" id="startReadingBtn">
+                            <i class="fas fa-play"></i>
+                            Start Reading
+                        </button>
+                        <button class="action-btn secondary" id="browseLibraryBtn">
+                            <i class="fas fa-book-open"></i>
+                            Browse Library
+                        </button>
+                    </div>
+                </section>
+
+                <section class="popular-books">
+                    <div class="section-header">
+                        <h3>Popular This Week</h3>
+                        <button class="see-all-btn" id="seeAllBtn">See All</button>
+                    </div>
+                    <div class="books-grid" id="popularBooksGrid">
+                        <!-- Popular books will be dynamically loaded -->
+                    </div>
+                </section>
+
+                <section class="categories">
+                    <h3>Browse by Category</h3>
+                    <div class="categories-grid">
+                        <div class="category-card" data-category="fiction">
+                            <i class="fas fa-magic"></i>
+                            <span>Fiction</span>
+                        </div>
+                        <div class="category-card" data-category="non-fiction">
+                            <i class="fas fa-lightbulb"></i>
+                            <span>Non-Fiction</span>
+                        </div>
+                        <div class="category-card" data-category="sci-fi">
+                            <i class="fas fa-rocket"></i>
+                            <span>Sci-Fi</span>
+                        </div>
+                        <div class="category-card" data-category="romance">
+                            <i class="fas fa-heart"></i>
+                            <span>Romance</span>
+                        </div>
+                        <div class="category-card" data-category="mystery">
+                            <i class="fas fa-search"></i>
+                            <span>Mystery</span>
+                        </div>
+                        <div class="category-card" data-category="classic">
+                            <i class="fas fa-crown"></i>
+                            <span>Classics</span>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="reading-stats">
+                    <h3>Your Reading Journey</h3>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <i class="fas fa-book"></i>
+                            <div class="stat-number" id="booksRead">0</div>
+                            <div class="stat-label">Books Read</div>
+                        </div>
+                        <div class="stat-card">
+                            <i class="fas fa-clock"></i>
+                            <div class="stat-number" id="readingTime">0h</div>
+                            <div class="stat-label">Reading Time</div>
+                        </div>
+                        <div class="stat-card">
+                            <i class="fas fa-fire"></i>
+                            <div class="stat-number" id="readingStreak">0</div>
+                            <div class="stat-label">Day Streak</div>
+                        </div>
+                        <div class="stat-card">
+                            <i class="fas fa-star"></i>
+                            <div class="stat-number" id="avgRating">0.0</div>
+                            <div class="stat-label">Avg Rating</div>
+                        </div>
+                    </div>
+                </section>
             </div>
         </div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="supabase-config.js"></script>
     <script src="script.js"></script>
 </body>
 </html> 

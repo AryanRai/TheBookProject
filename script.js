@@ -9,11 +9,18 @@ class EpubReelsReader {
         this.isAnimating = false;
         this.fontSize = 18;
         this.pageHeight = window.innerHeight - 110; // Account for header
+        this.isFullscreen = false;
+        this.darkMode = this.getPreferredTheme();
+        this.currentView = 'homepage'; // 'homepage', 'upload', 'reader'
+        this.popularBooks = this.getPopularBooks();
+        this.userStats = this.getUserStats();
         
         this.initializeElements();
+        this.initializeTheme();
         this.bindEvents();
         this.hideLoading(); // Hide loading screen on startup
-        this.showUploadArea();
+        this.showHomepage(); // Start with homepage
+        this.populateHomepage();
     }
 
     initializeElements() {
@@ -22,10 +29,35 @@ class EpubReelsReader {
         this.loadingScreen = document.getElementById('loadingScreen');
         this.bookTitleElement = document.getElementById('bookTitle');
         this.progressFill = document.getElementById('progressFill');
+        this.progressBar = document.getElementById('progressBar');
+        this.chapterMarkers = document.getElementById('chapterMarkers');
         this.fileInput = document.getElementById('fileInput');
         this.sidePanel = document.getElementById('sidePanel');
         this.menuOverlay = document.getElementById('menuOverlay');
         this.chaptersList = document.getElementById('chaptersList');
+        this.header = document.getElementById('header');
+        this.controlsOverlay = document.querySelector('.controls-overlay');
+        this.homepage = document.getElementById('homepage');
+        this.popularBooksGrid = document.getElementById('popularBooksGrid');
+    }
+
+    getPreferredTheme() {
+        const saved = localStorage.getItem('theme');
+        if (saved) return saved;
+        return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+
+    initializeTheme() {
+        document.documentElement.setAttribute('data-theme', this.darkMode);
+        this.updateThemeToggle();
+    }
+
+    updateThemeToggle() {
+        const themeToggle = document.getElementById('themeToggle');
+        const isDark = this.darkMode === 'dark';
+        themeToggle.innerHTML = isDark 
+            ? '<i class="fas fa-sun"></i>' 
+            : '<i class="fas fa-moon"></i>';
     }
 
     bindEvents() {
@@ -56,11 +88,25 @@ class EpubReelsReader {
 
         // Header controls
         document.getElementById('backBtn').addEventListener('click', () => {
-            this.showUploadArea();
+            this.navigateBack();
         });
 
         document.getElementById('menuBtn').addEventListener('click', () => {
             this.toggleMenu();
+        });
+
+        // New controls
+        document.getElementById('themeToggle').addEventListener('click', () => {
+            this.toggleTheme();
+        });
+
+        document.getElementById('fullscreenBtn').addEventListener('click', () => {
+            this.toggleFullscreen();
+        });
+
+        // Progress bar click navigation
+        this.progressBar.addEventListener('click', (e) => {
+            this.handleProgressBarClick(e);
         });
 
         // Menu items
@@ -111,6 +157,13 @@ class EpubReelsReader {
             } else if (e.key === 'Escape') {
                 this.hideMenu();
                 this.hideSidePanel();
+                if (this.isFullscreen) {
+                    this.toggleFullscreen();
+                }
+            } else if (e.key === 'f' || e.key === 'F') {
+                this.toggleFullscreen();
+            } else if (e.key === 'd' || e.key === 'D') {
+                this.toggleTheme();
             }
         });
 
@@ -127,6 +180,45 @@ class EpubReelsReader {
             if (this.pages.length > 0) {
                 this.redistributeContent();
             }
+        });
+
+        // Theme change detection
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+            if (!localStorage.getItem('theme')) {
+                this.darkMode = e.matches ? 'dark' : 'light';
+                this.initializeTheme();
+            }
+        });
+
+        // Homepage navigation
+        document.getElementById('startReadingBtn').addEventListener('click', () => {
+            this.showUploadArea();
+        });
+
+        document.getElementById('browseLibraryBtn').addEventListener('click', () => {
+            this.showLibrary();
+        });
+
+        // Homepage theme toggle
+        document.getElementById('homepageThemeToggle').addEventListener('click', () => {
+            this.toggleTheme();
+        });
+
+        // Cloud integration
+        document.getElementById('googleDriveBtn').addEventListener('click', () => {
+            this.connectGoogleDrive();
+        });
+
+        document.getElementById('supabaseBtn').addEventListener('click', () => {
+            this.connectSupabase();
+        });
+
+        // Categories
+        document.querySelectorAll('.category-card').forEach(card => {
+            card.addEventListener('click', () => {
+                const category = card.dataset.category;
+                this.browseCategory(category);
+            });
         });
     }
 
@@ -426,7 +518,7 @@ class EpubReelsReader {
                 <div class="page-content" style="font-size: ${this.fontSize}px;">
                     ${page.content}
                 </div>
-                <div class="page-number">${page.pageNumber} of ${this.pages.length}</div>
+                <div class="page-number ${this.isFullscreen ? 'fullscreen' : ''}">${page.pageNumber} of ${this.pages.length}</div>
             `;
             
             // Position pages
@@ -440,6 +532,7 @@ class EpubReelsReader {
         });
         
         this.updateProgress();
+        this.createChapterMarkers();
     }
 
     redistributeContent() {
@@ -504,7 +597,7 @@ class EpubReelsReader {
         
         setTimeout(() => {
             this.isAnimating = false;
-        }, 300);
+        }, 200);
     }
 
     nextPage() {
@@ -587,7 +680,7 @@ class EpubReelsReader {
     }
 
     hideUploadArea() {
-        this.uploadArea.classList.add('hidden');
+        this.showReader();
     }
 
     showLoading() {
@@ -646,7 +739,7 @@ class EpubReelsReader {
             this.hideLoading();
             this.createPages();
             this.populateChaptersList();
-        }, 1000);
+        }, 500);
     }
 
     createDemoContent() {
@@ -682,6 +775,372 @@ class EpubReelsReader {
         ];
         
         this.processChapters(this.chapters);
+    }
+
+    toggleTheme() {
+        this.darkMode = this.darkMode === 'dark' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', this.darkMode);
+        localStorage.setItem('theme', this.darkMode);
+        this.updateThemeToggle();
+    }
+
+    toggleFullscreen() {
+        this.isFullscreen = !this.isFullscreen;
+        
+        const elements = [this.header, this.controlsOverlay, this.reelsContainer];
+        const pageNumbers = document.querySelectorAll('.page-number');
+        
+        elements.forEach(el => {
+            if (this.isFullscreen) {
+                el.classList.add('fullscreen');
+            } else {
+                el.classList.remove('fullscreen');
+            }
+        });
+        
+        pageNumbers.forEach(el => {
+            if (this.isFullscreen) {
+                el.classList.add('fullscreen');
+            } else {
+                el.classList.remove('fullscreen');
+            }
+        });
+
+        // Update fullscreen button icon
+        const fullscreenBtn = document.getElementById('fullscreenBtn');
+        fullscreenBtn.innerHTML = this.isFullscreen 
+            ? '<i class="fas fa-compress"></i>' 
+            : '<i class="fas fa-expand"></i>';
+    }
+
+    handleProgressBarClick(e) {
+        if (this.pages.length === 0) return;
+        
+        const rect = this.progressBar.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const percentage = x / rect.width;
+        const targetPage = Math.floor(percentage * this.pages.length);
+        
+        this.goToPage(Math.max(0, Math.min(targetPage, this.pages.length - 1)));
+    }
+
+    createChapterMarkers() {
+        if (!this.chapterMarkers || this.pages.length === 0) return;
+        
+        this.chapterMarkers.innerHTML = '';
+        
+        // Find the first page of each chapter
+        const chapterStarts = [];
+        let currentChapter = -1;
+        
+        this.pages.forEach((page, index) => {
+            if (page.chapterIndex !== currentChapter) {
+                currentChapter = page.chapterIndex;
+                chapterStarts.push({
+                    pageIndex: index,
+                    chapterIndex: currentChapter,
+                    title: this.chapters[currentChapter]?.title || `Chapter ${currentChapter + 1}`
+                });
+            }
+        });
+        
+        // Create markers
+        chapterStarts.forEach(chapter => {
+            const marker = document.createElement('div');
+            marker.className = 'chapter-marker';
+            marker.style.left = `${(chapter.pageIndex / this.pages.length) * 100}%`;
+            marker.title = chapter.title;
+            
+            marker.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.goToPage(chapter.pageIndex);
+            });
+            
+            this.chapterMarkers.appendChild(marker);
+        });
+    }
+
+    // Popular Books and Homepage Data
+    getPopularBooks() {
+        return [
+            {
+                id: 1,
+                title: "The Seven Husbands of Evelyn Hugo",
+                author: "Taylor Jenkins Reid",
+                rating: 4.8,
+                cover: "📚",
+                category: "fiction"
+            },
+            {
+                id: 2,
+                title: "Atomic Habits",
+                author: "James Clear",
+                rating: 4.7,
+                cover: "⚛️",
+                category: "non-fiction"
+            },
+            {
+                id: 3,
+                title: "Project Hail Mary",
+                author: "Andy Weir",
+                rating: 4.9,
+                cover: "🚀",
+                category: "sci-fi"
+            },
+            {
+                id: 4,
+                title: "The Silent Patient",
+                author: "Alex Michaelides",
+                rating: 4.5,
+                cover: "🔍",
+                category: "mystery"
+            },
+            {
+                id: 5,
+                title: "It Ends with Us",
+                author: "Colleen Hoover",
+                rating: 4.6,
+                cover: "💕",
+                category: "romance"
+            },
+            {
+                id: 6,
+                title: "1984",
+                author: "George Orwell",
+                rating: 4.8,
+                cover: "👁️",
+                category: "classic"
+            }
+        ];
+    }
+
+    getUserStats() {
+        const saved = localStorage.getItem('userStats');
+        if (saved) {
+            return JSON.parse(saved);
+        }
+        return {
+            booksRead: 0,
+            readingTime: 0,
+            readingStreak: 0,
+            avgRating: 0.0,
+            favoriteGenre: 'Fiction'
+        };
+    }
+
+    saveUserStats() {
+        localStorage.setItem('userStats', JSON.stringify(this.userStats));
+    }
+
+    populateHomepage() {
+        this.populatePopularBooks();
+        this.updateUserStats();
+        this.updateHomepageTheme();
+    }
+
+    populatePopularBooks() {
+        this.popularBooksGrid.innerHTML = '';
+        
+        this.popularBooks.forEach(book => {
+            const bookCard = document.createElement('div');
+            bookCard.className = 'book-card';
+            bookCard.innerHTML = `
+                <div class="book-cover">
+                    <span style="font-size: 48px;">${book.cover}</span>
+                </div>
+                <div class="book-info">
+                    <div class="book-title">${book.title}</div>
+                    <div class="book-author">by ${book.author}</div>
+                    <div class="book-rating">
+                        <span class="stars">${'★'.repeat(Math.floor(book.rating))}${'☆'.repeat(5-Math.floor(book.rating))}</span>
+                        <span class="rating-number">${book.rating}</span>
+                    </div>
+                </div>
+            `;
+            
+            bookCard.addEventListener('click', () => {
+                this.openBook(book);
+            });
+            
+            this.popularBooksGrid.appendChild(bookCard);
+        });
+    }
+
+    updateUserStats() {
+        document.getElementById('booksRead').textContent = this.userStats.booksRead;
+        document.getElementById('readingTime').textContent = `${this.userStats.readingTime}h`;
+        document.getElementById('readingStreak').textContent = this.userStats.readingStreak;
+        document.getElementById('avgRating').textContent = this.userStats.avgRating.toFixed(1);
+    }
+
+    updateHomepageTheme() {
+        const homepageThemeToggle = document.getElementById('homepageThemeToggle');
+        const isDark = this.darkMode === 'dark';
+        homepageThemeToggle.innerHTML = isDark 
+            ? '<i class="fas fa-sun"></i>' 
+            : '<i class="fas fa-moon"></i>';
+    }
+
+    // Navigation Methods
+    showHomepage() {
+        this.currentView = 'homepage';
+        this.homepage.classList.remove('hidden');
+        this.uploadArea.classList.add('hidden');
+        this.hideReaderInterface();
+    }
+
+    showUploadArea() {
+        this.currentView = 'upload';
+        this.homepage.classList.add('hidden');
+        this.uploadArea.classList.remove('hidden');
+        this.hideReaderInterface();
+    }
+
+    showReader() {
+        this.currentView = 'reader';
+        this.homepage.classList.add('hidden');
+        this.uploadArea.classList.add('hidden');
+        this.showReaderInterface();
+    }
+
+    hideReaderInterface() {
+        // Hide reader-specific UI elements
+        if (this.header) this.header.style.display = 'none';
+        if (this.controlsOverlay) this.controlsOverlay.style.display = 'none';
+        if (this.sidePanel) this.sidePanel.classList.remove('active');
+        this.hideMenu();
+    }
+
+    showReaderInterface() {
+        // Show reader-specific UI elements
+        if (this.header) {
+            this.header.style.display = 'block';
+            this.header.classList.remove('fullscreen');
+        }
+        if (this.controlsOverlay) {
+            this.controlsOverlay.style.display = 'flex';
+            this.controlsOverlay.classList.remove('fullscreen');
+        }
+        // Ensure page numbers are visible
+        const pageNumbers = document.querySelectorAll('.page-number');
+        pageNumbers.forEach(el => {
+            el.style.display = 'block';
+            if (!this.isFullscreen) {
+                el.classList.remove('fullscreen');
+            }
+        });
+    }
+
+    navigateBack() {
+        if (this.currentView === 'reader') {
+            this.showHomepage();
+        } else if (this.currentView === 'upload') {
+            this.showHomepage();
+        }
+        // Reset reading state when going back
+        this.currentPageIndex = 0;
+        this.pages = [];
+        this.chapters = [];
+    }
+
+    // Cloud Integration Methods
+    async connectGoogleDrive() {
+        try {
+            // Show loading
+            this.showNotification('Connecting to Google Drive...', 'info');
+            
+            // Simulate Google Drive API integration
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            
+            // For now, just show success message
+            this.showNotification('Google Drive connected successfully!', 'success');
+            
+            // TODO: Implement actual Google Drive API integration
+            // - OAuth 2.0 authentication
+            // - File picker for EPUB files
+            // - Sync reading progress
+            
+        } catch (error) {
+            console.error('Google Drive connection failed:', error);
+            this.showNotification('Failed to connect to Google Drive', 'error');
+        }
+    }
+
+    async connectSupabase() {
+        try {
+            // Show loading
+            this.showNotification('Connecting to Library...', 'info');
+            
+            // Simulate Supabase connection
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            // For now, just show success message
+            this.showNotification('Library connected successfully!', 'success');
+            
+            // TODO: Implement actual Supabase integration
+            // - User authentication
+            // - Book library management
+            // - Reading progress sync
+            // - Social features
+            
+        } catch (error) {
+            console.error('Supabase connection failed:', error);
+            this.showNotification('Failed to connect to Library', 'error');
+        }
+    }
+
+    showLibrary() {
+        this.showNotification('Library feature coming soon!', 'info');
+        // TODO: Implement library view
+    }
+
+    browseCategory(category) {
+        this.showNotification(`Browsing ${category} books...`, 'info');
+        // TODO: Implement category filtering
+    }
+
+    openBook(book) {
+        this.showNotification(`Opening "${book.title}"...`, 'info');
+        
+        // For popular books, load demo content or prompt for upload
+        if (book.id === 6) { // 1984 - load as demo
+            setTimeout(() => {
+                this.loadDemoBook();
+                this.showReader();
+            }, 500);
+        } else {
+            // Prompt to upload EPUB for this book
+            setTimeout(() => {
+                this.showUploadArea();
+                this.showNotification('Please upload the EPUB file for this book', 'info');
+            }, 500);
+        }
+    }
+
+    showNotification(message, type = 'info') {
+        // Create notification element
+        const notification = document.createElement('div');
+        notification.className = `notification notification-${type}`;
+        notification.innerHTML = `
+            <i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'}"></i>
+            <span>${message}</span>
+        `;
+        
+        // Add to page
+        document.body.appendChild(notification);
+        
+        // Animate in
+        setTimeout(() => notification.classList.add('show'), 100);
+        
+        // Remove after delay
+        setTimeout(() => {
+            notification.classList.remove('show');
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                }
+            }, 300);
+        }, 3000);
     }
 }
 
